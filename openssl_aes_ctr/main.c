@@ -33,8 +33,7 @@ static void print_openssl_error (const char* prefix) {
 static bool aes256_ctr_encrypt (const unsigned char* key, const unsigned char* iv, const unsigned char* plaintext, int plaintext_len, unsigned char *output, int* output_len) {
     EVP_CIPHER_CTX* ctx = EVP_CIPHER_CTX_new ();
 
-    int ret = EVP_EncryptInit_ex (ctx, EVP_aes_256_ctr(), NULL /* engine */, key, iv);
-    if (!ret) {
+    if (!EVP_EncryptInit_ex (ctx, EVP_aes_256_ctr(), NULL /* engine */, key, iv)) {
         print_openssl_error ("Error in EVP_EncryptInit_ex");
         return false;
     }
@@ -42,8 +41,7 @@ static bool aes256_ctr_encrypt (const unsigned char* key, const unsigned char* i
     *output_len = 0;
 
     int outl;
-    ret = EVP_EncryptUpdate (ctx, output, &outl, plaintext, plaintext_len);
-    if (!ret) {
+    if (!EVP_EncryptUpdate (ctx, output, &outl, plaintext, plaintext_len)) {
         print_openssl_error ("Error in EVP_EncryptUpdate");
         return false;
     }
