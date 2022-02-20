@@ -30,7 +30,7 @@ static void print_openssl_error (const char* prefix) {
     printf ("%s: %s\n", prefix, ERR_error_string (errcode, buf));
 }
 
-static bool aes256_ctr_encrypt (const unsigned char* key, const unsigned char* iv, const unsigned char* plaintext, unsigned char *output, int* output_len) {
+static bool aes256_ctr_encrypt (const unsigned char* key, const unsigned char* iv, const unsigned char* plaintext, int plaintext_len, unsigned char *output, int* output_len) {
     EVP_CIPHER_CTX* ctx = EVP_CIPHER_CTX_new ();
 
     int ret = EVP_EncryptInit_ex (ctx, EVP_aes_256_ctr(), NULL /* engine */, key, iv);
@@ -39,13 +39,21 @@ static bool aes256_ctr_encrypt (const unsigned char* key, const unsigned char* i
         return false;
     }
 
-    int output_remaining = 1024;
-    ret = EVP_EncryptUpdate (ctx, output, output_len, plaintext, 64);
+    *output_len = 0;
+
+    int outl;
+    ret = EVP_EncryptUpdate (ctx, output, &outl, plaintext, plaintext_len);
     if (!ret) {
         print_openssl_error ("Error in EVP_EncryptUpdate");
         return false;
     }
-    output_remaining -= *output_len;
+    *output_len += outl;
+
+    if (!EVP_EncryptFinal_ex (ctx, output, &outl)) {
+        print_openssl_error ("Error in EVP_EncryptFinal_ex");
+        return false;
+    }
+    *output_len += outl;
 
     EVP_CIPHER_CTX_free (ctx);
     return true;
@@ -61,12 +69,23 @@ int main () {
 
     assert (sizeof(key) == 32 + 1 /* + 1 is for trailing NULL */);
     assert (sizeof(iv) == 16 + 1 /* + 1 is for trailing NULL */);
+    assert (sizeof(plaintext) == 64 + 1 /* + 1 is for trailing NULL */);
 
-    if (!aes256_ctr_encrypt (key, iv, plaintext, output, &output_len)) {
+    if (!aes256_ctr_encrypt (key, iv, plaintext, 64, output, &output_len)) {
         printf ("Error in aes256_ctr_encrypt\n");
         return EXIT_FAILURE;
     }
 
     hexdump (output, output_len, 0);
+
+    /* Q: Is padding applied?
+     * A: This test suggests not. The output only has one byte. */
+    if (!aes256_ctr_encrypt (key, iv, plaintext, 1, output, &output_len)) {
+        printf ("Error in aes256_ctr_encrypt\n");
+        return EXIT_FAILURE;
+    }
+
+    hexdump (output, output_len, 0);
+    assert (output_len == 1);
     return EXIT_SUCCESS;
 }
